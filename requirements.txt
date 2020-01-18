@@ -1,3 +1,5 @@
+pynance
+pandas
 # local package
 -e .
 
