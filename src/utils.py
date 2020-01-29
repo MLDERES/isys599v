@@ -3,7 +3,6 @@ import logging
 import pandas as pd
 from IPython.core.display import display
 from joblib import dump, load
-from multiprocessing_logging import install_mp_handler
 from src.constants import *
 
 TODAY = dt.datetime.today()
@@ -152,8 +151,7 @@ def read_latest(datasource_name, data_path=DATA_PATH, folder=DS_INTERIM, **kwarg
     :param folder: the subpath to the data, likely interim or processed
     :return:
     """
-    assert folder in [DS_EXTERNAL, DS_INTERIM, DS_PROCESSED, DS_RAW], \
-        f"Invalid folder to read '{folder}'"
+   
     read_path = data_path / folder
     fname = get_latest_data_filename(datasource_name, folder)
     logging.info(f"read from {fname}")
@@ -240,8 +238,7 @@ def missing_percentage(df):
     missing_data = pd.concat([total, percent], axis=1, keys=['Total', 'Percent'])
     return missing_data.head(20)
 
-
-
-
-
+if __name__ == "__main__":
+    df = read_latest('msft',folder=DS_RAW)
+    print(df.head())
 
