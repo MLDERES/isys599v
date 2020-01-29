@@ -4,8 +4,8 @@ from scipy.stats import norm
 from dateutil.parser import *
 from datetime import *
 
-def BlackSholes(currentPrice, strikePrice, volatility, rate, expiration):
-    term = (parse('12/31/2020').date() - date.today()).days
+def BlackSholes(currentPrice, strikePrice, volatility, rate, expiration = '12/31/2020'):
+    term = (parse(expiration).date() - date.today()).days
     return _BlackSholes(currentPrice,strikePrice,volatility,rate, term, termUnits='days')
 
 def _BlackSholes(currentPrice, strikePrice, volatility, rate, term, termUnits='days'):
