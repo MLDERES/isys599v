@@ -13,10 +13,7 @@ def getLikelyPrice(starting_price, historical_returns, period):
     daily_prices[0] = starting_price
     for x in range(period-1):
         sample_yield = historical_returns.sample(n=1)
-        while (np.isnan(sample_yield)):
-            print('getting another one')
-            sample_yield = historical_returns.sample(n=1)
-        daily_prices[x+1] = daily_prices[x]*(sample_yield, k) +1)
+        daily_prices[x+1] = daily_prices[x]*(sample_yield +1)
     m = daily_prices.mean()
     if (np.isnan(m)):
         print(f"Got nan:\n{daily_prices}")
