@@ -1,7 +1,7 @@
 isys599v
 ==============================
 
-Repo for work in 599v
+Repo for work in 599v.  This is primarily a Python notebook and associated code for analyzing stocks and deratives.
 
 Project Organization
 ------------
