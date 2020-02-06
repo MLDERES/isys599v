@@ -14,8 +14,6 @@ EX_API_KEY = os.getenv('IEX_TOKEN')
 #EX_API_KEY = os.getenv('IEX_TEST_TOKEN')
 
 
-
-
 def get_sp500():
     table = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')
     df = table[0]
@@ -49,42 +47,6 @@ def getHistorical(symbol, start, end):
 
 
 def _get_stocks(symbols):
-    sym = _get_list(symbols, errors='raise')
+    sym = get_list(symbols, errors='raise')
     stock_batch = Stock(sym, token=EX_API_KEY, output_format='pandas')
     return stock_batch
-
-def _get_list(item, errors='ignore'):
-    """
-    Return a list from the item passed.
-    If the item passed is a string, put it in a list.
-    If the item is list like, then return it as a list.
-    If the item is None, then the return depends on the errors state
-        If errors = 'raise' then raise an error if the list is empty
-        If errors = 'ignore' then return None
-        If errors = 'coerce' then return an empty list if possible
-    :param item: either a single item or a list-like
-    :param return_empty: if True then return an empty list rather than None
-    :return:
-    """
-    retVal = None
-    if item is None:
-        if errors=='coerce':
-            retVal = []
-        elif errors=='raise':
-            raise ValueError(f'Value of item was {item} expected either a single value or list-like')
-    elif is_list_like(item):
-        retVal = list(item)
-    else:
-        retVal = [item]
-    return retVal
-
-def _get_column_list(df, columns=None):
-    '''
-    Get a list of the columns in the dataframe df.  If columns is None, then return all.
-    If columns has a value then it should be either a string (col-name) or a list
-    :param df:
-    :param columns:
-    :return:
-    '''
-    cols = _get_list(columns)
-    return list(df.columns) if cols is None else list(set(df.columns).intersection(cols))
