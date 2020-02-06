@@ -3,6 +3,8 @@ import logging
 import pandas as pd
 from IPython.core.display import display
 from joblib import dump, load
+from pandas.core.dtypes.inference import is_list_like
+
 from src.constants import *
 
 TODAY = dt.datetime.today()
@@ -22,7 +24,6 @@ def start_logging(debug_to_console=False, log_filename=DEFAULT_LOGFILE):
     console.setFormatter(formatter)
     # add the handler to the root logger
     logging.getLogger('').addHandler(console)
-    install_mp_handler()
 
 
 def write_excel(data, filename, data_path=DATA_PATH, data_version=False, folder=DS_INTERIM, with_ts=True, **kwargs):
@@ -237,7 +238,8 @@ def missing_percentage(df):
     missing_data = pd.concat([total, percent], axis=1, keys=['Total', 'Percent'])
     return missing_data.head(20)
 
-def _get_list(item, errors='ignore'):
+
+def get_list(item, errors='ignore'):
     """
     Return a list from the item passed.
     If the item passed is a string, put it in a list.
@@ -270,7 +272,7 @@ def _get_column_list(df, columns=None):
     :param columns:
     :return:
     '''
-    cols = _get_list(columns)
+    cols = get_list(columns)
     return list(df.columns) if cols is None else list(set(df.columns).intersection(cols))
 
 
