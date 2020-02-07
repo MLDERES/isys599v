@@ -3,6 +3,10 @@ isys599v
 
 Repo for work in 599v.  This is primarily a Python notebook and associated code for analyzing stocks and deratives.
 
+NOTE: An API key for <a href='http://www.alphavantage.com'>AlphaVantage</a> is required and should be specified either<br/>
+in a file in the root folder called _.env_, or it can be set as an environment variable <br/>
+(either way it should be called: **ALPHA_VANTAGE_TOKEN**)
+
 Project Organization
 ------------
 

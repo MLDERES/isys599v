@@ -144,20 +144,27 @@ def read_latest_model(model_type, model_path=MODEL_PATH):
     return load(read_path / fname)
 
 
-def read_latest(datasource_name, data_path=DATA_PATH, folder=DS_INTERIM, **kwargs):
+def read_latest(datasource_name, data_path=DATA_PATH, folder=DS_INTERIM, errors='raise', **kwargs):
     """
     Get the most recent version of the cleaned dataset
     :param data_path:
     :param datasource_name: name of the file to get the data from
     :param folder: the subpath to the data, likely interim or processed
+    :param errors: if 'raise' then
     :return:
     """
-
     read_path = data_path / folder
-    fname = get_latest_data_filename(datasource_name, folder)
-    logging.info(f"read from {fname}")
-    return pd.read_csv(read_path / fname, index_col=0, infer_datetime_format=True, true_values=TRUE_VALUES,
+    try:
+        fname = get_latest_data_filename(datasource_name, folder)
+        logging.info(f"read from {fname}")
+        ret_df = pd.read_csv(read_path / fname, index_col=0, infer_datetime_format=True, true_values=TRUE_VALUES,
                        false_values=FALSE_VALUES, **kwargs)
+    except AssertionError:
+        if errors == 'ignore':
+            ret_df = None
+    finally:
+        return ret_df
+
 
 
 def read_latest_from_worksheet(filename, data_path=DATA_PATH, datasource_name='all', folder=DS_INTERIM, **kwargs):
