@@ -160,8 +160,9 @@ def read_latest(datasource_name, data_path=DATA_PATH, folder=DS_INTERIM, errors=
         ret_df = pd.read_csv(read_path / fname, index_col=0, infer_datetime_format=True, true_values=TRUE_VALUES,
                        false_values=FALSE_VALUES, **kwargs)
     except AssertionError:
-        if errors == 'ignore':
-            ret_df = None
+        ret_df = None
+        if errors != 'ignore':
+            raise
     finally:
         return ret_df
 

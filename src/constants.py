@@ -25,3 +25,13 @@ TODAY = dt.datetime.today()
 NOW = dt.datetime.now()
 _DEBUG = False
 DEFAULT_LOGFILE = 'assignment1'
+
+### Specific to the stock portfolio
+OPEN_PRICE = 'open'
+DAY_HIGH = 'high'
+DAY_LOW = 'low'
+DAY_CLOSE = 'close'
+ADJ_CLOSE = 'adjusted close'
+DAY_VOLUME = 'volume'
+DIVIDEND_AMT = 'dividend amt'
+SPLIT_COEFFICIENT = 'split coef'
