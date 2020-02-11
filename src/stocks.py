@@ -187,6 +187,15 @@ class StockChart:
         return None
 
     def Calculate30DayAnnualizedVolatility(self):
+        """
+        https://ycharts.com/glossary/terms/rolling_vol_30
+        :return:
+
+        """
+        # If the Total Price Return hasn't been calculated, do that first
+        #  Then just apply pandas percent_change equation to get daily change
+        #  Finally get the standard deviation of of a rolling 30 day percent_change * sqrt (252)
+        #  Notice when data is ASC need to do pct_change(-1)
         pass
 
     def LastDays(self,days, trading_days=True):
