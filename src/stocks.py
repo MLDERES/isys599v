@@ -1,4 +1,5 @@
 import string
+from enum import Enum
 from typing import List, Union
 from dateutil.relativedelta import relativedelta
 from dotenv import load_dotenv
@@ -18,7 +19,9 @@ ALPHA_API = os.getenv('ALPHA_VANTAGE_TOKEN')
 # Provides the ability to avoid having to create this everywhere
 _today = pd.Timestamp(TODAY)
 
-
+class SortOrder(Enum):
+    ASC = 1
+    DESC = 0
 
 def get_sp500():
     table = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')
@@ -65,18 +68,51 @@ def _getHistoricalTicker(ticker, full=False):
     return ret_val, meta
 
 
+class ColumnNames(Enum):
+    MOVING_AVG = 'moving_avg'
+    ANNUAL_VOL = 'annualized_volatility'
+    TOTAL_PRICE_RETURN = 'total price return'
+    TOTAL_PRICE_RETURN_FWD = 'total price return (fwd)'
+
+    def make_column_name(self, period, period_type='d'):
+        """
+        The purpose of this function is to ensure that create columns (from the Calculate*
+        functions) are consistent and don't have to be known to the caller
+
+        Example:
+        30_DMA = GetColumnName(30,MOVING_AVERAGE)
+        :param period: the number of days in the column to get
+        :param period_type: one of (day, week, month or year) 'd', 'w', 'm' or 'y'
+        :return:
+        """
+        return f'{period}{period_type} {self.value}'
+
+
 class StockChart:
 
-    # Should look alot like a DataGrid indexed on Date
+    # Should look a lot like a DataGrid indexed on Date
     # Could also have a set of information associated with the company
     # Should have a variety of functions we can apply to the data such as
     #    - Getting the daily return rate
     #    - Determining the 30 day annualized volatility
     #    - Determining the annualized return
 
+    ASC = 'asc'
+    DESC = 'desc'
+
     def __init__(self, ticker):
         self.data = None
         self.ticker = ticker
+        self._sort_order = None
+
+    @property
+    def sort_order(self):
+        if self._sort_order is None:
+            self._sort_order = SortOrder.ASC if df.index[1] < df.index[-1] else SortOrder.DESC
+        return self._sort_order
+
+    def sort(self, direction=SortOrder.DESC):
+        self.data.sort_index(ascending=(direction == SortOrder.ASC),inplace=True)
 
     @classmethod
     def LoadFromTicker(cls, ticker: string):
@@ -92,7 +128,7 @@ class StockChart:
         return chart
 
     @classmethod
-    def LoadFromFile(cls, ticker, errors='raise', folder=DS_PROCESSED, **kwargs):
+    def LoadFromFile(cls, ticker, errors='raise', folder=DS_PROCESSED, sort_order=SortOrder.ASC, **kwargs):
         """
         :param folder:
         :param kwargs:
@@ -100,6 +136,7 @@ class StockChart:
         """
         chart = cls(ticker)
         chart.data = read_latest(ticker, folder=folder, errors=errors)
+        chart.sort(sort_order)
         return chart
 
     def Save(self, with_timestamp=True, folder=DS_PROCESSED, **kwargs):
@@ -118,25 +155,64 @@ class StockChart:
         """
         new_col = self.data[DAY_CLOSE].rolling(days).mean()
         if update:
-            col_name = make_column_name(days,MOVING_AVG)
+            col_name = ColumnNames.MOVING_AVG.make_column_name(days)
             self.data[col_name] = new_col
         return new_col
+
+    def CalculateTotalReturnPrice(self, forward_adjusted=False):
+        """
+        Add a column for daily price return accounting for dividends and splits
+
+        **Total Price Return**
+        The prices in this series are adjusted on dividend ex-date by reducing the price prior to the dividend payment
+        by applying a dividend adjustment factor calculated as (1 - Value of Dividend/ Previous Day's Close Price).
+
+        **Total Price Return (Forward Adjusting)**
+        The prices in this series are adjusted on dividend ex-date by increasing the price AFTER
+        the dividend payment by applying a dividend adjustment factor
+        calculated as (1 + Value of Dividend/ Previous Day's Close Price).
+
+        reference https://ycharts.com/glossary/terms/total_return_price
+
+        :param forward_adjusted: If true, then the forward adjusted approach will be used
+        :return: None.  The chart will be updated with a column that has the daily price data
+        """
+        prev_day = -1 if self.sort_order == SortOrder.ASC else 1
+        if forward_adjusted:
+            self.data[ColumnNames.TOTAL_PRICE_RETURN] = \
+                df[DAY_CLOSE]*df[SPLIT_COEFFICIENT]*(1+df[DIVIDEND_AMT]/df[DAY_CLOSE].shift(prev_day))
+        else:
+            self.data[ColumnNames.TOTAL_PRICE_RETURN] = \
+                df[DAY_CLOSE] * df[SPLIT_COEFFICIENT] * (1 - df[DIVIDEND_AMT] / df[DAY_CLOSE].shift(prev_day))
+        return None
 
     def Calculate30DayAnnualizedVolatility(self):
         pass
 
     def LastDays(self,days, trading_days=True):
+        """
+        Create a dataset that includes encompasses a certain number of days in the past
+        :param days: the number of days to go back
+        :param trading_days: if True consider only business days otherwise all days
+        :return: a pandas dataframe with only the number of days specified going back from today
+        """
         offset = pd.offsets.BDay(days) if trading_days else pd.Timedelta(day=-days)
         return self.data[_today-offset:]
 
     def LastWeeks(self, weeks):
+        """
+        Create a dataset that includes encompasses a certain number of days in the past
+        :param weeks: the number of weeks to go back from today
+        :return: a pandas dataframe with only the number of weeks specified, starting from today and going backward
+        """
         return self.data[_today-pd.DateOffset(weeks=weeks):]
 
 
 
 if __name__ == "__main__":
-    msft = StockChart.LoadFromFile('MSFT', folder=DS_EXTERNAL)
-    msft.SaveChart()
-    print(f'{msft.data}')
+    print(ColumnNames.TOTAL_PRICE_RETURN.make_column_name(30,'d'))
+    # msft = StockChart.LoadFromFile('MSFT', folder=DS_EXTERNAL)
+    # msft.SaveChart()
+    # print(f'{msft.data}')
     #msft = StockChart.LoadFromTicker('MSFT')
 
