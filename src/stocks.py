@@ -7,6 +7,7 @@ from iexfinance.stocks import Stock
 from src.utils import *
 from src.constants import *
 from src.stock_utils import *
+import math
 
 from alpha_vantage.timeseries import TimeSeries
 StringList = List[str]
@@ -20,8 +21,11 @@ ALPHA_API = os.getenv('ALPHA_VANTAGE_TOKEN')
 _today = pd.Timestamp(TODAY)
 
 class SortOrder(Enum):
-    ASC = 1
-    DESC = 0
+    ASC = 'asc'
+    DESC = 'desc'
+
+    def previous_day(self):
+        return -1 if self == SortOrder.ASC else 1
 
 def get_sp500():
     table = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')
@@ -73,6 +77,7 @@ class ColumnNames(Enum):
     ANNUAL_VOL = 'annualized_volatility'
     TOTAL_PRICE_RETURN = 'total price return'
     TOTAL_PRICE_RETURN_FWD = 'total price return (fwd)'
+    PCT_DAY_CHANGE = 'pct daily change'
 
     def make_column_name(self, period, period_type='d'):
         """
@@ -96,9 +101,8 @@ class StockChart:
     #    - Getting the daily return rate
     #    - Determining the 30 day annualized volatility
     #    - Determining the annualized return
-
-    ASC = 'asc'
-    DESC = 'desc'
+    ASC = -1
+    DESC = 1
 
     def __init__(self, ticker):
         self.data = None
@@ -113,6 +117,9 @@ class StockChart:
 
     def sort(self, direction=SortOrder.DESC):
         self.data.sort_index(ascending=(direction == SortOrder.ASC),inplace=True)
+
+    def _column_exists(self,col_name):
+        return self.data.columns.contains(col_name)
 
     @classmethod
     def LoadFromTicker(cls, ticker: string):
@@ -177,26 +184,38 @@ class StockChart:
         :param forward_adjusted: If true, then the forward adjusted approach will be used
         :return: None.  The chart will be updated with a column that has the daily price data
         """
-        prev_day = -1 if self.sort_order == SortOrder.ASC else 1
-        if forward_adjusted:
-            self.data[ColumnNames.TOTAL_PRICE_RETURN] = \
-                df[DAY_CLOSE]*df[SPLIT_COEFFICIENT]*(1+df[DIVIDEND_AMT]/df[DAY_CLOSE].shift(prev_day))
-        else:
-            self.data[ColumnNames.TOTAL_PRICE_RETURN] = \
-                df[DAY_CLOSE] * df[SPLIT_COEFFICIENT] * (1 - df[DIVIDEND_AMT] / df[DAY_CLOSE].shift(prev_day))
+        if not self._column_exists(ColumnNames.TOTAL_PRICE_RETURN):
+            prev_day = self.sort_order.previous_day()
+            if forward_adjusted:
+                self.data[ColumnNames.TOTAL_PRICE_RETURN] = \
+                    df[DAY_CLOSE]*df[SPLIT_COEFFICIENT]*(1+df[DIVIDEND_AMT]/df[DAY_CLOSE].shift(prev_day))
+            else:
+                self.data[ColumnNames.TOTAL_PRICE_RETURN] = \
+                    df[DAY_CLOSE] * df[SPLIT_COEFFICIENT] * (1 - df[DIVIDEND_AMT] / df[DAY_CLOSE].shift(prev_day))
         return None
 
     def Calculate30DayAnnualizedVolatility(self):
         """
         https://ycharts.com/glossary/terms/rolling_vol_30
         :return:
-
         """
+        #The standard deviation of of a rolling 30 day percent_change * sqrt (252)
+        if self._column_exists(ColumnNames.ANNUAL_VOL):
+            return
+        self.CalculatePercentDailyChange()
+        df = self.data
+        # Square root of trading days
+        srt = math.sqrt(ANN_TRADE_DAYS)
+        df[ColumnNames.ANNUAL_VOL] =  df[ColumnNames.TOTAL_PRICE_RETURN].rolling(30).std(min_periods=30) * srt
+
+    def CalculatePercentDailyChange(self):
         # If the Total Price Return hasn't been calculated, do that first
-        #  Then just apply pandas percent_change equation to get daily change
-        #  Finally get the standard deviation of of a rolling 30 day percent_change * sqrt (252)
-        #  Notice when data is ASC need to do pct_change(-1)
-        pass
+        if self._column_exists(ColumnNames.PCT_DAY_CHANGE):
+            return
+        self.CalculateTotalReturnPrice()
+        prev_day = self.sort_order.previous_day()
+        df = self.data
+        df[ColumnNames.PCT_DAY_CHANGE] = df[ColumnNames.TOTAL_PRICE_RETURN].pct_change(prev_day)
 
     def LastDays(self,days, trading_days=True):
         """
@@ -220,7 +239,11 @@ class StockChart:
 
 if __name__ == "__main__":
     print(ColumnNames.TOTAL_PRICE_RETURN.make_column_name(30,'d'))
-    # msft = StockChart.LoadFromFile('MSFT', folder=DS_EXTERNAL)
+    msft = StockChart.LoadFromFile('MSFT', folder=DS_EXTERNAL)
+    print(msft.data.columns)
+    print(msft._column_exists(ColumnNames.PCT_DAY_CHANGE))
+    print(msft._column_exists(DAY_CLOSE))
+
     # msft.SaveChart()
     # print(f'{msft.data}')
     #msft = StockChart.LoadFromTicker('MSFT')
