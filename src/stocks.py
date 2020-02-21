@@ -1,18 +1,17 @@
 import string
+import os, sys
 from enum import Enum
 from typing import List, Union
-from dateutil.relativedelta import relativedelta
 from dotenv import load_dotenv
-from iexfinance.stocks import Stock
 from src.utils import *
 from src.constants import *
-from src.stock_utils import *
 import math
-
+from dateutil.relativedelta import  relativedelta
+import numpy as np
+import pandas as pd
 from alpha_vantage.timeseries import TimeSeries
-StringList = List[str]
 
-# Get the IEX_API key from the environment variable or .env file
+ANN_TRADE_DAYS = 252
 load_dotenv()
 EX_API_KEY = os.getenv('IEX_TOKEN')
 ALPHA_API = os.getenv('ALPHA_VANTAGE_TOKEN')
@@ -38,6 +37,27 @@ def get_sp500_tickers():
     assert isinstance(df, pd.DataFrame)
     return df['Symbols']
 
+
+
+def getLikelyPrice(starting_price, historical_returns, period):
+    """
+    Using a monte-carlo like simulation to calculate the price of an asset using historical returns
+    NOTE: the historical returns need to be in the same units as period, so if the historical returns
+    are calculated daily then it is assumed tha the period is in number of days
+    :param historical_returns: Series of returns in the same frequency as <period>
+    :param period: the period over which to calculate the return
+    """
+    daily_prices = np.zeros(period)
+    daily_prices[0] = starting_price
+    for x in range(period-1):
+        sample_yield = historical_returns.sample(n=1)
+        daily_prices[x+1] = daily_prices[x]*(sample_yield +1)
+    m = daily_prices.mean()
+    if (np.isnan(m)):
+        print(f"Got nan:\n{daily_prices}")
+
+    return daily_prices.mean()
+
 def _getHistoricalTicker(ticker, full=False):
 
     # Using AlphaVantage https://alpha-vantage.readthedocs.io/en/latest/
@@ -45,6 +65,7 @@ def _getHistoricalTicker(ticker, full=False):
     #  outputsize = 'full' which would bring back everything.  In that case, I'd likely try to load it from
     #  the CSV file instead and then merge together
     ts = TimeSeries(ALPHA_API, output_format='pandas')
+    meta = None
     if full:
         historical = read_latest(ticker, folder=DS_EXTERNAL, errors='ignore')
         if historical is None:
@@ -57,15 +78,20 @@ def _getHistoricalTicker(ticker, full=False):
             write_data(historical,ticker,folder=DS_EXTERNAL)
             ret_val=historical
         else:
-            last_100, meta = ts.get_daily_adjusted(symbol=ticker,outputsize='compact')
-            historical.rename(columns={'1. open': OPEN_PRICE, '2. high': DAY_HIGH,
-                                       '3. low': DAY_LOW, '4. close': DAY_CLOSE,
-                                       '5. adjusted close': ADJ_CLOSE, '6. volume': DAY_VOLUME,
-                                       '7. dividend amount': DIVIDEND_AMT, '8. split coefficient': SPLIT_COEFFICIENT}
-                              , inplace=True)
-            ret_val = historical.append(last_100)
-            ret_val.drop_duplicates(inplace=True)
-            write_data(ret_val,ticker,folder=DS_EXTERNAL)
+            # If we have old data, then we'll go back to the source and get new data
+
+            if relativedelta(pd.to_datetime(historical.index[-1]), TODAY).days > 0:
+                last_100, meta = ts.get_daily_adjusted(symbol=ticker,outputsize='compact')
+                last_100.rename(columns={'1. open': OPEN_PRICE, '2. high': DAY_HIGH,
+                                           '3. low': DAY_LOW, '4. close': DAY_CLOSE,
+                                           '5. adjusted close': ADJ_CLOSE, '6. volume': DAY_VOLUME,
+                                           '7. dividend amount': DIVIDEND_AMT, '8. split coefficient': SPLIT_COEFFICIENT}
+                                  , inplace=True)
+                ret_val = historical.append(last_100)
+                ret_val.drop_duplicates(inplace=True)
+                write_data(ret_val,ticker,folder=DS_EXTERNAL)
+            else:
+                ret_val = historical
     else:
         last_100, meta = ts.get_daily_adjusted(symbol=ticker,outputsize='compact')
         ret_val = last_100
@@ -236,9 +262,9 @@ class StockChart:
         return self.data[_today-pd.DateOffset(weeks=weeks):]
 
 
-
 if __name__ == "__main__":
-    print(ColumnNames.TOTAL_PRICE_RETURN.make_column_name(30,'d'))
+    #print(ColumnNames.TOTAL_PRICE_RETURN.make_column_name(30,'d'))
+    msft = StockChart.LoadFromTicker('MSFT')
     msft = StockChart.LoadFromFile('MSFT', folder=DS_EXTERNAL)
     print(msft.data.columns)
     print(msft._column_exists(ColumnNames.PCT_DAY_CHANGE))
